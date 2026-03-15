@@ -18,6 +18,8 @@ export interface ListDirMessage {
 export interface LaunchMessage {
   type: "launch";
   cwd: string;
+  cols?: number;
+  rows?: number;
 }
 
 // Server → Client
@@ -68,7 +70,12 @@ export function parseClientMessage(data: string): ClientMessage | null {
       return msg as ListDirMessage;
     }
     if (msg.type === "launch" && typeof msg.cwd === "string") {
-      return msg as LaunchMessage;
+      return {
+        type: "launch",
+        cwd: msg.cwd,
+        cols: typeof msg.cols === "number" ? msg.cols : undefined,
+        rows: typeof msg.rows === "number" ? msg.rows : undefined,
+      } as LaunchMessage;
     }
     return null;
   } catch {

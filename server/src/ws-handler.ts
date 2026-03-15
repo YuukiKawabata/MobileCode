@@ -94,7 +94,7 @@ export function handleConnection(ws: WebSocket, ptyManager: PtyManager): void {
           return;
         }
         // Kill existing PTY and spawn new one (suppresses stale exit events)
-        ptyManager.relaunch(cwd);
+        ptyManager.relaunch(cwd, msg.cols, msg.rows);
         sendJson({ type: "launch_result", success: true, cwd });
         console.log(`[ws] launched claude in ${cwd}`);
       } catch (err) {

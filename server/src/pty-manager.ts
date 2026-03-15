@@ -21,7 +21,7 @@ export class PtyManager {
 
   private _cwd: string | undefined;
 
-  spawn(cwd?: string): void {
+  spawn(cwd?: string, cols?: number, rows?: number): void {
     if (this.process) return;
 
     const bridgePath = join(__dirname, "pty-bridge.py");
@@ -29,13 +29,16 @@ export class PtyManager {
     const workingDir = cwd || process.env.HOME || "/";
     this._cwd = workingDir;
 
+    const initialCols = cols || 80;
+    const initialRows = rows || 24;
+
     const child = spawn("python3", [bridgePath, claudePath], {
       stdio: ["pipe", "pipe", "pipe"],
       env: {
         ...process.env,
         TERM: "xterm-256color",
-        COLS: "80",
-        ROWS: "24",
+        COLS: String(initialCols),
+        ROWS: String(initialRows),
         PATH: `${process.env.HOME}/.local/bin:/usr/local/bin:/usr/bin:/bin:${process.env.PATH || ""}`,
       },
       cwd: workingDir,
@@ -101,14 +104,14 @@ export class PtyManager {
     this.exitListeners.push(listener);
   }
 
-  relaunch(cwd: string): void {
+  relaunch(cwd: string, cols?: number, rows?: number): void {
     // Increment processId first so old exit/data handlers become no-ops
     this.processId++;
     if (this.process) {
       this.process.kill("SIGTERM");
       this.process = null;
     }
-    this.spawn(cwd);
+    this.spawn(cwd, cols, rows);
   }
 
   kill(): void {

@@ -170,6 +170,7 @@ struct FolderBrowserView: View {
     }
 
     private func launchInCurrentPath() {
-        relayConnection.sendControl(.launch(cwd: currentPath))
+        let size = DisplayConfig.load().terminalSize()
+        relayConnection.sendControl(.launch(cwd: currentPath, cols: size.cols, rows: size.rows))
     }
 }

@@ -5,7 +5,7 @@ enum ClientMessage {
     case auth(token: String)
     case resize(cols: Int, rows: Int)
     case listDir(path: String)
-    case launch(cwd: String)
+    case launch(cwd: String, cols: Int, rows: Int)
 
     var jsonData: Data? {
         let dict: [String: Any]
@@ -16,8 +16,8 @@ enum ClientMessage {
             dict = ["type": "resize", "cols": cols, "rows": rows]
         case .listDir(let path):
             dict = ["type": "list_dir", "path": path]
-        case .launch(let cwd):
-            dict = ["type": "launch", "cwd": cwd]
+        case .launch(let cwd, let cols, let rows):
+            dict = ["type": "launch", "cwd": cwd, "cols": cols, "rows": rows]
         }
         return try? JSONSerialization.data(withJSONObject: dict)
     }

@@ -3,14 +3,15 @@ import SwiftTerm
 
 struct TerminalContainer: UIViewRepresentable {
     let relayConnection: RelayConnection
+    let displayConfig: DisplayConfig
 
     func makeUIView(context: Context) -> TerminalView {
         let tv = TerminalView()
         tv.terminalDelegate = context.coordinator
-        tv.becomeFirstResponder()
+        tv.inputAccessoryView = nil
+        _ = tv.becomeFirstResponder()
 
-        // Smaller font to fit ~80 columns in portrait
-        let fontSize: CGFloat = 7
+        let fontSize = displayConfig.fontSize
         tv.font = UIFont(name: "Menlo", size: fontSize) ?? UIFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
 
         // Dark terminal appearance
@@ -28,7 +29,17 @@ struct TerminalContainer: UIViewRepresentable {
         return tv
     }
 
-    func updateUIView(_ uiView: TerminalView, context: Context) {}
+    func updateUIView(_ uiView: TerminalView, context: Context) {
+        let fontSize = displayConfig.fontSize
+        if uiView.font.pointSize != fontSize {
+            let newFont = UIFont(name: "Menlo", size: fontSize) ?? UIFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
+            uiView.font = newFont
+            // Force SwiftTerm to recalculate cols/rows and send resize to server
+            uiView.setNeedsLayout()
+            uiView.layoutIfNeeded()
+        }
+        uiView.inputAccessoryView = nil
+    }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(relayConnection: relayConnection)
