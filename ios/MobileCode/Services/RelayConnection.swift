@@ -20,8 +20,12 @@ enum ConnectionState: Equatable {
 
 class RelayConnection: ObservableObject {
     @Published var state: ConnectionState = .disconnected
+    @Published var currentCwd: String?
+    @Published var ptyLaunched = false
 
     var onDataReceived: ((Data) -> Void)?
+    var onDirListing: ((String, [DirEntry]) -> Void)?
+    var onLaunchResult: ((Bool, String) -> Void)?
 
     private var webSocketTask: URLSessionWebSocketTask?
     private var session: URLSession?
@@ -67,6 +71,8 @@ class RelayConnection: ObservableObject {
         session?.invalidateAndCancel()
         session = nil
         state = .disconnected
+        ptyLaunched = false
+        currentCwd = nil
     }
 
     func sendBinary(_ data: Data) {
@@ -136,6 +142,17 @@ class RelayConnection: ObservableObject {
                     }
                 case .error(let msg):
                     self.state = .error(msg)
+                case .dirListing(let path, let entries):
+                    self.onDirListing?(path, entries)
+                case .launchResult(let success, let cwd):
+                    if success {
+                        self.currentCwd = cwd
+                        self.ptyLaunched = true
+                    }
+                    self.onLaunchResult?(success, cwd)
+                case .ptyExited:
+                    self.ptyLaunched = false
+                    self.currentCwd = nil
                 }
             }
 

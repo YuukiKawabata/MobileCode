@@ -8,6 +8,10 @@ struct TerminalScreen: View {
         VStack(spacing: 0) {
             TerminalContainer(relayConnection: relayConnection)
 
+            if relayConnection.state == .connected {
+                ShortcutBar(relayConnection: relayConnection)
+            }
+
             HStack {
                 ConnectionStatusBar(state: relayConnection.state)
                 Spacer()

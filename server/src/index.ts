@@ -21,7 +21,7 @@ ptyManager.onExit((code) => {
   // Notify all connected clients
   for (const client of wss.clients) {
     if (client.readyState === client.OPEN) {
-      client.send(JSON.stringify({ type: "error", message: "PTY process exited" }));
+      client.send(JSON.stringify({ type: "pty_exited", code: code ?? null }));
     }
   }
 });

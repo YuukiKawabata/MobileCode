@@ -1,3 +1,5 @@
+import { readdirSync, statSync } from "fs";
+import { resolve } from "path";
 import type { WebSocket } from "ws";
 import type { PtyManager } from "./pty-manager.js";
 import { config } from "./config.js";
@@ -24,33 +26,10 @@ export function handleConnection(ws: WebSocket, ptyManager: PtyManager): void {
 
   ptyManager.onData(onPtyData);
 
-  // Ensure PTY is running
-  if (!ptyManager.isRunning) {
-    try {
-      ptyManager.spawn();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "failed to spawn PTY";
-      console.error("[pty] spawn error:", msg);
-      sendJson({ type: "error", message: `PTY spawn failed: ${msg}` });
-      ws.close(4002, "pty spawn failed");
-      return;
-    }
-  }
-
   ws.on("message", (raw, isBinary) => {
     // Binary frame → PTY input
     if (isBinary) {
-      if (!authenticated) return;
-      // Auto-respawn PTY if it exited
-      if (!ptyManager.isRunning) {
-        try {
-          ptyManager.spawn();
-        } catch (err) {
-          const emsg = err instanceof Error ? err.message : "failed to spawn PTY";
-          sendJson({ type: "error", message: `PTY spawn failed: ${emsg}` });
-          return;
-        }
-      }
+      if (!authenticated || !ptyManager.isRunning) return;
       const buf = raw as Buffer;
       ptyManager.write(buf.toString("utf-8"));
       return;
@@ -70,16 +49,6 @@ export function handleConnection(ws: WebSocket, ptyManager: PtyManager): void {
         authenticated = true;
         sendJson({ type: "auth_result", success: true });
         console.log("[ws] authenticated");
-        // Respawn PTY if it exited
-        if (!ptyManager.isRunning) {
-          try {
-            ptyManager.spawn();
-          } catch (err) {
-            const emsg = err instanceof Error ? err.message : "failed to spawn PTY";
-            console.error("[pty] spawn error:", emsg);
-            sendJson({ type: "error", message: `PTY spawn failed: ${emsg}` });
-          }
-        }
       } else {
         sendJson({ type: "auth_result", success: false });
         console.log("[ws] auth failed");
@@ -95,6 +64,44 @@ export function handleConnection(ws: WebSocket, ptyManager: PtyManager): void {
 
     if (msg.type === "resize") {
       ptyManager.resize(msg.cols, msg.rows);
+    }
+
+    if (msg.type === "list_dir") {
+      try {
+        const dirPath = resolve(msg.path || process.env.HOME || "/");
+        const items = readdirSync(dirPath, { withFileTypes: true });
+        const entries = items
+          .filter((item) => !item.name.startsWith("."))
+          .map((item) => ({ name: item.name, isDir: item.isDirectory() }))
+          .sort((a, b) => {
+            if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+            return a.name.localeCompare(b.name);
+          });
+        sendJson({ type: "dir_listing", path: dirPath, entries });
+      } catch (err) {
+        const emsg = err instanceof Error ? err.message : "failed to list directory";
+        sendJson({ type: "error", message: emsg });
+      }
+    }
+
+    if (msg.type === "launch") {
+      try {
+        const cwd = resolve(msg.cwd);
+        // Verify directory exists
+        const stat = statSync(cwd);
+        if (!stat.isDirectory()) {
+          sendJson({ type: "error", message: "Not a directory" });
+          return;
+        }
+        // Kill existing PTY and spawn new one (suppresses stale exit events)
+        ptyManager.relaunch(cwd);
+        sendJson({ type: "launch_result", success: true, cwd });
+        console.log(`[ws] launched claude in ${cwd}`);
+      } catch (err) {
+        const emsg = err instanceof Error ? err.message : "failed to launch";
+        sendJson({ type: "launch_result", success: false, cwd: msg.cwd });
+        sendJson({ type: "error", message: emsg });
+      }
     }
   });
 

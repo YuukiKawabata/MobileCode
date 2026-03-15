@@ -7,6 +7,7 @@ const __dirname = dirname(__filename);
 
 export class PtyManager {
   private process: ChildProcess | null = null;
+  private processId = 0;
   private dataListeners: ((data: string) => void)[] = [];
   private exitListeners: ((code: number | undefined) => void)[] = [];
 
@@ -14,11 +15,19 @@ export class PtyManager {
     return this.process !== null;
   }
 
-  spawn(): void {
+  get currentCwd(): string | undefined {
+    return this._cwd;
+  }
+
+  private _cwd: string | undefined;
+
+  spawn(cwd?: string): void {
     if (this.process) return;
 
     const bridgePath = join(__dirname, "pty-bridge.py");
     const claudePath = process.env.CLAUDE_PATH || "/Users/yuki/.local/bin/claude";
+    const workingDir = cwd || process.env.HOME || "/";
+    this._cwd = workingDir;
 
     const child = spawn("python3", [bridgePath, claudePath], {
       stdio: ["pipe", "pipe", "pipe"],
@@ -29,12 +38,14 @@ export class PtyManager {
         ROWS: "24",
         PATH: `${process.env.HOME}/.local/bin:/usr/local/bin:/usr/bin:/bin:${process.env.PATH || ""}`,
       },
-      cwd: process.env.HOME || "/",
+      cwd: workingDir,
     });
 
     this.process = child;
+    const myId = ++this.processId;
 
     child.stdout?.on("data", (data: Buffer) => {
+      if (this.processId !== myId) return;
       const str = data.toString("utf-8");
       for (const listener of this.dataListeners) {
         listener(str);
@@ -58,6 +69,7 @@ export class PtyManager {
     });
 
     child.on("exit", (code) => {
+      if (this.processId !== myId) return;
       this.process = null;
       for (const listener of this.exitListeners) {
         listener(code ?? undefined);
@@ -65,6 +77,7 @@ export class PtyManager {
     });
 
     child.on("error", (err) => {
+      if (this.processId !== myId) return;
       console.error("[pty] process error:", err.message);
       this.process = null;
     });
@@ -86,6 +99,16 @@ export class PtyManager {
 
   onExit(listener: (code: number | undefined) => void): void {
     this.exitListeners.push(listener);
+  }
+
+  relaunch(cwd: string): void {
+    // Increment processId first so old exit/data handlers become no-ops
+    this.processId++;
+    if (this.process) {
+      this.process.kill("SIGTERM");
+      this.process = null;
+    }
+    this.spawn(cwd);
   }
 
   kill(): void {

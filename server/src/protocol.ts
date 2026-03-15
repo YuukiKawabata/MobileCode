@@ -10,6 +10,16 @@ export interface ResizeMessage {
   rows: number;
 }
 
+export interface ListDirMessage {
+  type: "list_dir";
+  path: string;
+}
+
+export interface LaunchMessage {
+  type: "launch";
+  cwd: string;
+}
+
 // Server → Client
 export interface AuthResultMessage {
   type: "auth_result";
@@ -21,8 +31,25 @@ export interface ErrorMessage {
   message: string;
 }
 
-export type ClientMessage = AuthMessage | ResizeMessage;
-export type ServerMessage = AuthResultMessage | ErrorMessage;
+export interface DirListingMessage {
+  type: "dir_listing";
+  path: string;
+  entries: { name: string; isDir: boolean }[];
+}
+
+export interface LaunchResultMessage {
+  type: "launch_result";
+  success: boolean;
+  cwd: string;
+}
+
+export interface PtyExitedMessage {
+  type: "pty_exited";
+  code: number | null;
+}
+
+export type ClientMessage = AuthMessage | ResizeMessage | ListDirMessage | LaunchMessage;
+export type ServerMessage = AuthResultMessage | ErrorMessage | DirListingMessage | LaunchResultMessage | PtyExitedMessage;
 
 export function parseClientMessage(data: string): ClientMessage | null {
   try {
@@ -36,6 +63,12 @@ export function parseClientMessage(data: string): ClientMessage | null {
       typeof msg.rows === "number"
     ) {
       return msg as ResizeMessage;
+    }
+    if (msg.type === "list_dir" && typeof msg.path === "string") {
+      return msg as ListDirMessage;
+    }
+    if (msg.type === "launch" && typeof msg.cwd === "string") {
+      return msg as LaunchMessage;
     }
     return null;
   } catch {
