@@ -1,0 +1,9 @@
+## Server
+server/node_modules/
+server/.env
+server/dist/
+
+## iOS
+*.xcuserstate
+xcuserdata/
+DerivedData/
